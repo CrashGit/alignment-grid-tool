@@ -50,7 +50,7 @@ $F4::       ; press once to send F4, press twice within 250ms to toggle grid ali
 
 #HotIf IsSet(Horizontal_Line) or IsSet(Vertical_Line)
 
-    ; move grid one pixel in given direction
+    ; move grid x pixels in given direction
     Up::MoveUpOrDown(-1)
     Down::MoveUpOrDown(1)
     Left::MoveLeftOrRight(-1)
@@ -60,55 +60,49 @@ $F4::       ; press once to send F4, press twice within 250ms to toggle grid ali
     ^Left::MoveLeftOrRight(-5)
     ^Right::MoveLeftOrRight(5)
 
+    =::IncreaseThickness(1) ; increase grid thickness
+    ^=::IncreaseThickness(5) ; increase grid thickness by five
 
-    =:: ; increase grid thickness by one
-        IncreaseThickness(ThisHotkey := unset)
-        {
-            Horizontal_Line.GetPos(,,, &size)
-            Horizontal_Line.Move(,,, size+1 <= maxThickness ? (size+1, size += 1) : size)
+    -::DecreaseThickness(1) ; decrease grid thickness
+    ^-::DecreaseThickness(5) ; decrease grid thickness by five
 
-            Vertical_Line.GetPos(,, &size)
-            Vertical_Line.Move(,, size+1 <= maxThickness ? size+1 : size)
+    Control & WheelUp::IncreaseThickness(1)
+    Control & WheelDown::DecreaseThickness(1)
+    
+    
 
-            ShowToolTip()
-        }
-
-
-    ^=:: ; increase grid thickness by five
+    ; thickness functions
+    IncreaseThickness(increment)
     {
-        Horizontal_Line.GetPos(,,, &size)
-        Horizontal_Line.Move(,,, size+5 <= maxThickness ? size+5 : maxThickness)
+        ; increase thickness if less than max
+        ; then move lines to fit inside monitor if increased thickness bleed outside the monitor
+        Horizontal_Line.GetPos(, &y,, &size)
+        Horizontal_Line.Move(,,, (size + increment <= maxThickness) ? (size + increment) : maxThickness)
+        Horizontal_Line.GetPos(, &y,, &size)
+        Horizontal_Line.Move(, (y + size > A_ScreenHeight) ? (A_ScreenHeight - size) : y)
 
-        Vertical_Line.GetPos(,, &size)
-        Vertical_Line.Move(,, size+5 <= maxThickness ? size+5 : maxThickness)
+        Vertical_Line.GetPos(&x,, &size)
+        Vertical_Line.Move(,, (size + increment <= maxThickness) ? (size + increment) : maxThickness)
+        Vertical_Line.GetPos(&x,, &size)
+        Vertical_Line.Move((x + size > A_ScreenWidth) ? (A_ScreenWidth - size) : x)
 
         ShowToolTip()
     }
 
 
-    -:: ; decrease grid thickness by one
-        DecreaseThickness(ThisHotkey := unset)
-        {
-            Horizontal_Line.GetPos(,,, &size)
-            Horizontal_Line.Move(,,, size-1 > 0 ? size-1 : size)
 
-            Vertical_Line.GetPos(,, &size)
-            Vertical_Line.Move(,, size-1 > 0 ? size-1 : size)
-
-            ShowToolTip()
-        }
-
-
-    ^-:: ; decrease grid thickness by five
+    DecreaseThickness(decrement)
     {
-        Horizontal_Line.GetPos(,,, &size)
-        Horizontal_Line.Move(,,, size-5 > 0 ? size-5 : 1)
+        Horizontal_Line.GetPos(, &y,, &size)
+        Horizontal_Line.Move(,,, (size - decrement > 0) ? (size - decrement) : 1)
 
-        Vertical_Line.GetPos(,, &size)
-        Vertical_Line.Move(,, size-5 > 0 ? size-5 : 1)
+        Vertical_Line.GetPos(&x,, &size)
+        Vertical_Line.Move(,, (size - decrement > 0) ? (size - decrement) : 1)
+
 
         ShowToolTip()
     }
+
 
 
     ~LButton::  ; re-position the grid
@@ -120,14 +114,11 @@ $F4::       ; press once to send F4, press twice within 250ms to toggle grid ali
         Horizontal_Line.Move(, mouse_y)
         Vertical_Line.Move(mouse_x)
 
-        Horizontal_Line.Opt('AlwaysOnTop')
-        Vertical_Line.Opt('AlwaysOnTop')
+        SetTimer(() => Horizontal_Line.Opt('AlwaysOnTop'), -10)
+        SetTimer(() => Vertical_Line.Opt('AlwaysOnTop'), -10)
 
         ShowToolTip()
     }
-
-    Control & WheelUp::IncreaseThickness()
-    Control & WheelDown::DecreaseThickness()
 
 #HotIf
 
@@ -156,7 +147,9 @@ CreateAlignmentGrid()
 
 
 
-    ShowToolTip()
+    Horizontal_Line.GetPos(, &y)
+    Vertical_Line.GetPos(&x)
+    global tooltip_id := ToolTip('Thickness: ' size, (x+size+8), (y+size+8))
 }
 
 
@@ -168,21 +161,18 @@ MoveUpOrDown(move)
 {
     Horizontal_Line.GetPos(, &y,, &size)
 
-    if GetKeyState('Control', 'P') {
 
-        if (y + move <= A_ScreenHeight - size) and (y + move >= 0)
-            Horizontal_Line.Move(, y + move)
+    ; y position has enough room to move the requested amount
+    if (y + move <= A_ScreenHeight - size) and (y + move >= 0)
+        Horizontal_Line.Move(, y + move)
 
-        else if y + move > A_ScreenHeight - size
-            Horizontal_Line.Move(, A_ScreenHeight - size)
+    ; y position is near screenheight
+    else if y + move > A_ScreenHeight - size
+        Horizontal_Line.Move(, A_ScreenHeight - size)
 
-        else
-            Horizontal_Line.Move(, 0)
-    }
-
+    ; y position is near 0
     else
-        if (y + move <= A_ScreenHeight - size) and (y + move >= 0)
-            Horizontal_Line.Move(, y + move)
+        Horizontal_Line.Move(, 0)
 
 
     Horizontal_Line.Opt('AlwaysOnTop')
@@ -196,21 +186,15 @@ MoveLeftOrRight(move)
 {
     Vertical_Line.GetPos(&x,, &size)
 
-    if GetKeyState('Control', 'P') {
 
-        if (x + move <= A_ScreenWidth - size) and (x + move >= 0)
-            Vertical_Line.Move(x + move)
+    if (x + move <= A_ScreenWidth - size) and (x + move >= 0)
+        Vertical_Line.Move(x + move)
 
-        else if x + move > A_ScreenWidth - size
-            Vertical_Line.Move(A_ScreenWidth - size)
-
-        else
-            Vertical_Line.Move(0)
-    }
+    else if x + move > A_ScreenWidth - size
+        Vertical_Line.Move(A_ScreenWidth - size)
 
     else
-        if (x + move <= A_ScreenWidth - size) and (x + move >= 0)
-            Vertical_Line.Move(x + move)
+        Vertical_Line.Move(0)
 
 
     Horizontal_Line.Opt('AlwaysOnTop')
@@ -219,13 +203,35 @@ MoveLeftOrRight(move)
 }
 
 
+
 ShowToolTip()
 {
+    static x_pos := unset
+    static y_pos := unset
+
     Horizontal_Line.GetPos(, &y,, &size)
     Vertical_Line.GetPos(&x)
 
-    ToolTip('Thickness: ' size, (x+size+8), (y+size+8))
+    WinGetPos(,, &tooltipWidth, &tooltipHeight, tooltip_id)
+
+
+    ; if tooltip WOULD go off screen ; x_pos
+    if (x+size+8+tooltipWidth) > A_ScreenWidth
+        x_pos := x-8-tooltipWidth
+    else
+        x_pos := x+size+8
+
+
+    ; if tooltip WOULD go off screen ; y_pos
+    if (y+size+tooltipHeight) > A_ScreenHeight
+        y_pos := y-8-tooltipHeight
+    else
+        y_pos := y+size+8
+
+
+    global tooltip_id := ToolTip('Thickness: ' size, x_pos, y_pos)
 }
+
 
 
 Destroy_Align_Tool()
