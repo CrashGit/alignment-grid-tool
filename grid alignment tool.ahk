@@ -34,6 +34,8 @@ $F4::       ; press once to send F4, press twice within 250ms to toggle grid ali
     }
 }
 
+^F4::Grid.FollowMouse()
+
 
 
 #HotIf IsSet(Horizontal_Line) or IsSet(Vertical_Line)
@@ -59,20 +61,7 @@ $F4::       ; press once to send F4, press twice within 250ms to toggle grid ali
     Control & WheelDown::Grid.DecreaseThickness(1)
 
 
-    ~LButton::  ; re-position the grid
-    {
-        MouseGetPos(&mouse_x, &mouse_y)
-        if mouse_x > A_ScreenWidth or mouse_x < 0 ; because of multiple monitors
-            return
-
-        Horizontal_Line.Move(, mouse_y)
-        Vertical_Line.Move(mouse_x)
-
-        SetTimer(() => Horizontal_Line.Opt('AlwaysOnTop'), -10)
-        SetTimer(() => Vertical_Line.Opt('AlwaysOnTop'), -10)
-
-        Grid.ShowToolTip()
-    }
+    ~LButton::Grid.UpdatePosition()  ; re-position the grid
 
 #HotIf
 
@@ -99,6 +88,11 @@ class Grid {
 
     ; initialize tooltip id
     static tooltip_id := unset
+
+    ; following mouse toggle and method
+    static followingTheMouse := false
+    static FollowTheMouse := ObjBindMethod(this, 'UpdatePosition')
+
 
 
     ; -------------------------------------------------------------------------------
@@ -128,6 +122,7 @@ class Grid {
     }
 
 
+
     ; -------------------------------------------------------------------------------
     ; THICKNESS METHODS
     ; -------------------------------------------------------------------------------
@@ -149,6 +144,7 @@ class Grid {
     }
 
 
+
     static DecreaseThickness(decrement)
     {
         Horizontal_Line.GetPos(, &y,, &lineSize)
@@ -166,6 +162,43 @@ class Grid {
     ; -------------------------------------------------------------------------------
     ; METHODS
     ; -------------------------------------------------------------------------------
+    static UpdatePosition() {
+        MouseGetPos(&mouse_x, &mouse_y)
+
+        if mouse_x > A_ScreenWidth or mouse_x < 0 ; because of multiple monitors
+            return
+
+        try {
+            Horizontal_Line.Move(, mouse_y)
+            Vertical_Line.Move(mouse_x)
+
+            Horizontal_Line.Opt('AlwaysOnTop')
+            Vertical_Line.Opt('AlwaysOnTop')
+
+            this.ShowToolTip()
+        }
+    }
+
+
+
+    static FollowMouse() {
+        this.followingTheMouse := !this.followingTheMouse
+
+        if IsSet(Horizontal_Line) or IsSet(Vertical_Line)
+            if this.followingTheMouse
+                SetTimer(this.FollowTheMouse, 10)
+            else SetTimer(this.FollowTheMouse, 0)
+
+        else {
+            if this.followingTheMouse {
+                this.CreateAlignmentGrid()
+                SetTimer(this.FollowTheMouse, 10)
+            }
+        }
+    }
+
+
+
     static MoveUpOrDown(move)
     {
         Horizontal_Line.GetPos(, &y,, &lineSize)
@@ -213,25 +246,43 @@ class Grid {
 
     static ShowToolTip()
     {
-        Horizontal_Line.GetPos(, &y,, &lineSize)
-        Vertical_Line.GetPos(&x)
+        Horizontal_Line.GetPos(, &line_yPos,, &lineSize)
+        Vertical_Line.GetPos(&line_xPos)
 
         WinGetPos(,, &tooltipWidth, &tooltipHeight, this.tooltip_id)
 
 
-        ; if tooltip WOULD go off screen ; x_pos
-        if (x+lineSize+this.margin+tooltipWidth) > A_ScreenWidth
-            this.x_pos := x-this.margin-tooltipWidth
+        if UpperLeftQuadrant()
+            this.x_pos := line_xPos+lineSize+this.margin,       this.y_pos := line_yPos+lineSize+this.margin
 
-        else this.x_pos := x+lineSize+this.margin
+        else if LowerLeftQuadrant()
+            this.x_pos := line_xPos+lineSize+this.margin,       this.y_pos := line_yPos-this.margin-tooltipHeight
 
-        ToolTip('Thickness: ' lineSize 'px', this.x_pos, y+lineSize+this.margin)
+        else if UpperRightQuadrant()
+            this.x_pos := line_xPos-this.margin-tooltipWidth,   this.y_pos := line_yPos+lineSize+this.margin
+
+        else if LowerRightQuadrant()
+            this.x_pos := line_xPos-this.margin-tooltipWidth,   this.y_pos := line_yPos-this.margin-tooltipHeight
+
+
+        ToolTip('Thickness: ' lineSize 'px', this.x_pos, this.y_pos)
+
+        UpperLeftQuadrant()  => line_xPos <  (A_ScreenWidth/2) and line_yPos <  (A_ScreenHeight/2)
+        LowerLeftQuadrant()  => line_xPos <  (A_ScreenWidth/2) and line_yPos >= (A_ScreenHeight/2)
+        UpperRightQuadrant() => line_xPos >= (A_ScreenWidth/2) and line_yPos <  (A_ScreenHeight/2)
+        LowerRightQuadrant() => line_xPos >= (A_ScreenWidth/2) and line_yPos >= (A_ScreenHeight/2)
     }
 
 
 
     static Destroy_Align_Tool()
     {
+        this.size := 1
+        this.followingTheMouse := false
+
+        ToolTip()
+        SetTimer(this.followTheMouse, 0)
+
         if IsSet(Horizontal_Line) {
             Horizontal_Line.Destroy()
             global Horizontal_Line := unset
@@ -241,9 +292,5 @@ class Grid {
             Vertical_Line.Destroy()
             global Vertical_Line := unset
         }
-
-        this.size := 1
-
-        ToolTip()
     }
 }
