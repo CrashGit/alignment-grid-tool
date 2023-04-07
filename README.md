@@ -5,6 +5,8 @@ Have you ever tried creating a gui and you're positive you have done the math co
 
 By default, double tap `F4` to toggle the grid. Then click anywhere on your primary monitor to get it closer to the elements you're testing.
 
+`Control + F4` will toggle the grid to follow the mouse.
+
 `arrow keys` move it `1` pixel in the given direction.
 
 `ctrl & arrow keys` move it `5` pixels in the given direction.
